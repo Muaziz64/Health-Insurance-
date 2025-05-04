@@ -1,0 +1,356 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyO2u+Xtm7acUK5gNBSlRX6A",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/Muaziz64/Ai-agent/blob/main/health_insurance.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "S-PlOPBW0I7l",
+        "outputId": "b8316657-6f36-40a4-80b2-0aebc030e514"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Downloading from https://www.kaggle.com/api/v1/datasets/download/teertha/ushealthinsurancedataset?dataset_version_number=1...\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "100%|██████████| 16.0k/16.0k [00:00<00:00, 17.1MB/s]"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Extracting files...\n",
+            "Dataset downloaded to: /root/.cache/kagglehub/datasets/teertha/ushealthinsurancedataset/versions/1\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "\n"
+          ]
+        }
+      ],
+      "source": [
+        "# Import libraries\n",
+        "import kagglehub\n",
+        "import pandas as pd\n",
+        "import sqlite3\n",
+        "from google.colab import files\n",
+        "\n",
+        "# Download latest version of dataset\n",
+        "path = kagglehub.dataset_download(\"teertha/ushealthinsurancedataset\")\n",
+        "print(\"Dataset downloaded to:\", path)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Load dataset CSV - adjusting filename based on typical dataset content\n",
+        "csv_file = f\"{path}/insurance.csv\"  # common file name in health insurance dataset; adjust if different\n",
+        "df = pd.read_csv(csv_file)"
+      ],
+      "metadata": {
+        "id": "nnD0dIEM0OPB"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"Loaded dataset preview:\")\n",
+        "print(df.head())\n",
+        "\n",
+        "# Connect to SQLite database in-memory for fast processing\n",
+        "conn = sqlite3.connect(':memory:')\n",
+        "df.to_sql('raw_data', conn, index=False, if_exists='replace')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "HHzbKcRD0X1_",
+        "outputId": "c35f4cb1-9022-44ea-cf10-dfedb61bb74a"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Loaded dataset preview:\n",
+            "   age     sex     bmi  children smoker     region      charges\n",
+            "0   19  female  27.900         0    yes  southwest  16884.92400\n",
+            "1   18    male  33.770         1     no  southeast   1725.55230\n",
+            "2   28    male  33.000         3     no  southeast   4449.46200\n",
+            "3   33    male  22.705         0     no  northwest  21984.47061\n",
+            "4   32    male  28.880         0     no  northwest   3866.85520\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "1338"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 5
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "cursor = conn.cursor()"
+      ],
+      "metadata": {
+        "id": "4kxwHeei0YVS"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Clean data with SQL - typical cleaning steps:\n",
+        "\n",
+        "# 1. Remove duplicates\n",
+        "cursor.execute('''\n",
+        "CREATE TABLE temp_data AS\n",
+        "SELECT DISTINCT * FROM raw_data;\n",
+        "''')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "yDlNSG680yMQ",
+        "outputId": "a591b485-645d-4eea-986c-6d6246fc9222"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<sqlite3.Cursor at 0x7810b36cecc0>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 7
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# 3. Remove outlier charges (less than 0 or too high, here using 0 and 60,000 as example)\n",
+        "cursor.execute('''\n",
+        "DELETE FROM temp_data\n",
+        "WHERE charges < 0 OR charges > 60000;\n",
+        "''')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Se_qa3h30y9l",
+        "outputId": "78dbdd47-a187-4ae2-e045-e1aba4d01e80"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<sqlite3.Cursor at 0x7810b36cecc0>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 8
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# 4. Remove outlier age (common working age 18 to 100)\n",
+        "cursor.execute('''\n",
+        "DELETE FROM temp_data\n",
+        "WHERE age < 18 OR age > 100;\n",
+        "''')\n",
+        "\n",
+        "# 5. Create final cleaned table\n",
+        "cursor.execute('''\n",
+        "CREATE TABLE cleaned_data AS\n",
+        "SELECT * FROM temp_data;\n",
+        "''')\n",
+        "\n",
+        "# Drop temp table\n",
+        "cursor.execute('DROP TABLE temp_data;')\n",
+        "\n",
+        "conn.commit()"
+      ],
+      "metadata": {
+        "id": "vlINHeSj0Yyq"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Export cleaned data to pandas dataframe\n",
+        "cleaned_df = pd.read_sql_query('SELECT * FROM cleaned_data', conn)\n",
+        "\n",
+        "print(\"Cleaned data preview:\")\n",
+        "print(cleaned_df.head())\n",
+        "\n",
+        "# Save cleaned data to CSV\n",
+        "output_csv = \"cleaned_health_insurance_data.csv\"\n",
+        "cleaned_df.to_csv(output_csv, index=False)\n",
+        "\n",
+        "print(f\"Cleaned data saved to {output_csv}\")\n",
+        "\n",
+        "# Provide download link in Colab\n",
+        "files.download(output_csv)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 176
+        },
+        "id": "yocAr7Br1E9N",
+        "outputId": "36cf3cdf-999f-43c1-d9bc-09c4d9907db7"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Cleaned data preview:\n",
+            "   age     sex     bmi  children smoker     region      charges\n",
+            "0   19  female  27.900         0    yes  southwest  16884.92400\n",
+            "1   18    male  33.770         1     no  southeast   1725.55230\n",
+            "2   28    male  33.000         3     no  southeast   4449.46200\n",
+            "3   33    male  22.705         0     no  northwest  21984.47061\n",
+            "4   32    male  28.880         0     no  northwest   3866.85520\n",
+            "Cleaned data saved to cleaned_health_insurance_data.csv\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<IPython.core.display.Javascript object>"
+            ],
+            "application/javascript": [
+              "\n",
+              "    async function download(id, filename, size) {\n",
+              "      if (!google.colab.kernel.accessAllowed) {\n",
+              "        return;\n",
+              "      }\n",
+              "      const div = document.createElement('div');\n",
+              "      const label = document.createElement('label');\n",
+              "      label.textContent = `Downloading \"${filename}\": `;\n",
+              "      div.appendChild(label);\n",
+              "      const progress = document.createElement('progress');\n",
+              "      progress.max = size;\n",
+              "      div.appendChild(progress);\n",
+              "      document.body.appendChild(div);\n",
+              "\n",
+              "      const buffers = [];\n",
+              "      let downloaded = 0;\n",
+              "\n",
+              "      const channel = await google.colab.kernel.comms.open(id);\n",
+              "      // Send a message to notify the kernel that we're ready.\n",
+              "      channel.send({})\n",
+              "\n",
+              "      for await (const message of channel.messages) {\n",
+              "        // Send a message to notify the kernel that we're ready.\n",
+              "        channel.send({})\n",
+              "        if (message.buffers) {\n",
+              "          for (const buffer of message.buffers) {\n",
+              "            buffers.push(buffer);\n",
+              "            downloaded += buffer.byteLength;\n",
+              "            progress.value = downloaded;\n",
+              "          }\n",
+              "        }\n",
+              "      }\n",
+              "      const blob = new Blob(buffers, {type: 'application/binary'});\n",
+              "      const a = document.createElement('a');\n",
+              "      a.href = window.URL.createObjectURL(blob);\n",
+              "      a.download = filename;\n",
+              "      div.appendChild(a);\n",
+              "      a.click();\n",
+              "      div.remove();\n",
+              "    }\n",
+              "  "
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<IPython.core.display.Javascript object>"
+            ],
+            "application/javascript": [
+              "download(\"download_14ec5003-18ba-466b-b4a6-2b020a63667a\", \"cleaned_health_insurance_data.csv\", 54183)"
+            ]
+          },
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "uoJ_wkQW1FXb"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
